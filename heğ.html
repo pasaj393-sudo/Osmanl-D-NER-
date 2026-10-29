@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Metin2 Retro - Mobile Web Edition</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    body {
+      background-color: #030712;
+      color: #f3f4f6;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    #game-container {
+      position: relative;
+      width: 100vw;
+      max-width: 420px;
+      height: 100vh;
+      max-height: 750px;
+      background: #0f172a;
+      border: 2px solid #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #142312;
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(3, 7, 18, 0.92);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 16px;
+      z-index: 10;
+    }
+    .title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #f59e0b;
+      text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 20px;
+    }
+    .btn {
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: white;
+      border: 2px solid #fef08a;
+      padding: 12px 28px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.4);
+    }
+    .btn:active { transform: scale(0.95); }
+    .class-select {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    .class-card {
+      background: #1e293b;
+      border: 2px solid #475569;
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .class-card.selected {
+      border-color: #f59e0b;
+      background: #334155;
+    }
+    .class-card span { font-size: 2rem; }
+    .class-card h4 { font-size: 0.9rem; color: #f8fafc; }
+    .class-card p { font-size: 0.7rem; color: #94a3b8; }
+    
+    /* HUD */
+    .hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .stat-box {
+      background: rgba(15, 23, 42, 0.85);
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #f8fafc;
+    }
+    .hp-bar-bg {
+      width: 100px; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 2px;
+    }
+    .hp-bar-fill {
+      width: 100%; height: 100%; background: #ef4444; transition: width 0.2s;
+    }
+    .controls-overlay {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      gap: 10px;
+      z-index: 5;
+    }
+    .skill-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 2px solid #f59e0b;
+      color: white;
+      font-weight: bold;
+      font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .skill-btn:active { transform: scale(0.9); }
+    .skill-btn span { font-size: 0.55rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <!-- HUD ARAYÜZÜ -->
+  <div class="hud">
+    <div class="stat-box">
+      <div><span id="player-lvl" style="color:#f59e0b;">Lv.1 Savaşçı</span></div>
+      <div class="hp-bar-bg"><div id="hp-fill" class="hp-bar-fill"></div></div>
+    </div>
+    <div class="stat-box" style="text-align: right;">
+      <div style="color:#facc15;">💰 YANG: <span id="yang-txt">0</span></div>
+      <div style="color:#38bdf8; font-size:0.75rem;">EXP: <span id="exp-txt">0%</span></div>
+    </div>
+  </div>
+
+  <!-- DOKUNMATİK YETENEK BUTONLARI -->
+  <div class="controls-overlay" id="controls" style="display:none;">
+    <button class="skill-btn" onclick="useSkill('Q')">Q<span>AURA</span></button>
+    <button class="skill-btn" onclick="useSkill('R')">R<span>ÇEVİRME</span></button>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <!-- SINIF SEÇİM EKRANI -->
+  <div id="start-screen" class="overlay">
+    <div class="title">METİN2 RETRO</div>
+    <div class="subtitle">Karakterini Seç ve Metin Taşlarını Kes!</div>
+
+    <div class="class-select">
+      <div class="class-card selected" onclick="selectClass('warrior', this)">
+        <span>🗡️</span>
+        <h4>SAVAŞÇI</h4>
+        <p>Bedensel Güç / Yakın</p>
+      </div>
+      <div class="class-card" onclick="selectClass('sura', this)">
+        <span>🔥</span>
+        <h4>SURA</h4>
+        <p>Büyülü Keskinlik</p>
+      </div>
+      <div class="class-card" onclick="selectClass('ninja', this)">
+        <span>🗡️</span>
+        <h4>NİNJA</h4>
+        <p>Çift Bıçak / Seri</p>
+      </div>
+      <div class="class-card" onclick="selectClass('shaman', this)">
+        <span>🔮</span>
+        <h4>ŞAMAN</h4>
+        <p>Kritik & İyileştirme</p>
+      </div>
+    </div>
+
+    <button class="btn" onclick="startGame()">OYUNA BAŞLA</button>
+  </div>
+
+  <!-- GÖREV BAŞARISIZ / ÖLÜM EKRANI -->
+  <div id="gameover-screen" class="overlay" style="display: none;">
+    <div class="title" style="color: #ef4444;">ÖLDÜN!</div>
+    <div class="subtitle">Burada Yeniden Başla (Şehirde Doğ)</div>
+    <button class="btn" onclick="respawn()">ŞEHİRDE DOĞ</button>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 360;
+  canvas.height = 640;
+
+  // Web Audio API (Harici ses dosyası gerektirmez)
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  let audioCtx;
+  function initAudio() { if (!audioCtx) audioCtx = new AudioContext(); }
+  function playSound(type) {
+    if (!audioCtx) return;
+    try {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      if (type === 'hit') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+      } else if (type === 'skill') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+      } else if (type === 'metin') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+      }
+    } catch(e) {}
+  }
+
+  // Oyun Durumları
+  let isPlaying = false;
+  let selectedClass = 'warrior';
+  let level = 1, exp = 0, maxExp = 100, yang = 0;
+  let frame = 0;
+  let player, metins = [], monsters = [], particles = [];
+
+  const CLASSES = {
+    warrior: { name: 'Savaşçı', color: '#3b82f6', icon: '🗡️', hp: 400, speed: 2.2, dmg: 35 },
+    sura: { name: 'Sura', color: '#a855f7', icon: '🔥', hp: 350, speed: 2.3, dmg: 40 },
+    ninja: { name: 'Ninja', color: '#22c55e', icon: '🗡️', hp: 320, speed: 2.7, dmg: 30 },
+    shaman: { name: 'Şaman', color: '#ec4899', icon: '🔮', hp: 300, speed: 2.4, dmg: 38 }
+  };
+
+  class Player {
+    constructor(cls) {
+      this.x = 180; this.y = 450;
+      this.w = 26; this.h = 26;
+      this.targetX = this.x; this.targetY = this.y;
+      this.cls = cls;
+      this.hp = cls.hp; this.maxHp = cls.hp;
+      this.attackCd = 0;
+      this.aura = false; this.auraTimer = 0;
+    }
+
+    draw() {
+      if (this.aura) {
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(this.x + 13, this.y + 13, 22, 0, Math.PI*2); ctx.stroke();
+      }
+      ctx.fillStyle = this.cls.color;
+      ctx.fillRect(this.x, this.y, this.w, this.h);
+      ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
+      ctx.fillText(this.cls.icon, this.x + 4, this.y + 18);
+    }
+
+    update() {
+      if (this.attackCd > 0) this.attackCd--;
+      if (this.aura) {
+        this.auraTimer--;
+        if (this.auraTimer <= 0) this.aura = false;
+      }
+      let dx = this.targetX - this.x;
+      let dy = this.targetY - this.y;
+      let dist = Math.hypot(dx, dy);
+      if (dist > 3) {
+        this.x += (dx / dist) * this.cls.speed;
+        this.y += (dy / dist) * this.cls.speed;
+      }
+    }
+  }
+
+  class MetinStone {
+    constructor(x, y, level = 1) {
+      this.x = x; this.y = y; this.w = 34; this.h = 34;
+      this.hp = 250 * level; this.maxHp = this.hp;
+      this.level = level;
+    }
+
+    draw() {
+      ctx.fillStyle = '#1e293b'; ctx.fillRect(this.x - 3, this.y - 10, 40, 6);
+      ctx.fillStyle = '#ef4444'; ctx.fillRect(this.x - 3, this.y - 10, Math.max(0, (this.hp / this.maxHp) * 40), 6);
+
+      ctx.fillStyle = '#64748b'; ctx.fillRect(this.x, this.y, this.w, this.h);
+      ctx.fillStyle = '#f59e0b'; ctx.fillRect(this.x + 6, this.y + 6, 22, 22);
+    }
+  }
+
+  class Monster {
+    constructor(x, y) {
+      this.x = x; this.y = y; this.w = 24; this.h = 24;
+      this.hp = 80; this.maxHp = 80;
+      this.speed = 1.3;
+    }
+
+    draw() {
+      ctx.fillStyle = '#ef4444'; ctx.fillRect(this.x, this.y, this.w, this.h);
+      ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.fillText('👹', this.x + 4, this.y + 16);
+    }
+
+    update() {
+      let dx = player.x - this.x;
+      let dy = player.y - this.y;
+      let dist = Math.hypot(dx, dy);
+      if (dist < 180 && dist > 20) {
+        this.x += (dx / dist) * this.speed;
+        this.y += (dy / dist) * this.speed;
+      }
+    }
+  }
+
+  function selectClass(clsKey, el) {
+    selectedClass = clsKey;
+    document.querySelectorAll('.class-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  function useSkill(type) {
+    if (!isPlaying) return;
+    playSound('skill');
+    if (type === 'Q') {
+      player.aura = true; player.auraTimer = 300;
+    } else if (type === 'R') {
+      particles.push({ x: player.x + 13, y: player.y + 13, r: 50, life: 15, color: '#f59e0b' });
+      [...metins, ...monsters].forEach(target => {
+        if (Math.hypot(target.x - player.x, target.y - player.y) < 60) {
+          target.hp -= player.cls.dmg * 2.5;
+          playSound('metin');
+        }
+      });
+    }
+  }
+
+  canvas.ontouchmove = (e) => {
+    if (!isPlaying) return;
+    let r = canvas.getBoundingClientRect();
+    player.targetX = (e.touches[0].clientX - r.left) * (canvas.width / r.width) - 13;
+    player.targetY = (e.touches[0].clientY - r.top) * (canvas.height / r.height) - 13;
+  };
+
+  function spawnWorld() {
+    if (metins.length < 2) metins.push(new MetinStone(Math.random() * 280 + 20, Math.random() * 300 + 40));
+    if (monsters.length < 4) monsters.push(new Monster(Math.random() * 300 + 20, Math.random() * 300 + 40));
+  }
+
+  function update() {
+    frame++;
+    spawnWorld();
+
+    player.update();
+    monsters.forEach(m => m.update());
+
+    // Otomatik Temel Saldırı
+    if (player.attackCd === 0) {
+      let target = [...metins, ...monsters].find(t => Math.hypot(t.x - player.x, t.y - player.y) < 40);
+      if (target) {
+        let dmg = player.cls.dmg * (player.aura ? 1.5 : 1);
+        target.hp -= dmg;
+        playSound('hit');
+        player.attackCd = 30;
+      }
+    }
+
+    // Slotların Hasar Vermesi
+    monsters.forEach(m => {
+      if (Math.hypot(m.x - player.x, m.y - player.y) < 25) {
+        player.hp -= 0.5;
+        if (player.hp <= 0) gameOver();
+      }
+    });
+
+    // Kesilen Metin Taşları
+    metins.forEach((m, i) => {
+      if (m.hp <= 0) {
+        yang += 500 * m.level;
+        exp += 40;
+        metins.splice(i, 1);
+        playSound('metin');
+      }
+    });
+
+    // Kesilen Canavarlar
+    monsters.forEach((m, i) => {
+      if (m.hp <= 0) {
+        yang += 120; exp += 15;
+        monsters.splice(i, 1);
+      }
+    });
+
+    // EXP & Seviye Atlama
+    if (exp >= maxExp) {
+      level++; exp = 0; maxExp += 50;
+      player.maxHp += 50; player.hp = player.maxHp;
+    }
+
+    // Arayüz Güncelleme
+    document.getElementById('player-lvl').innerText = `Lv.${level} ${player.cls.name}`;
+    document.getElementById('yang-txt').innerText = yang;
+    document.getElementById('exp-txt').innerText = `${Math.floor((exp/maxExp)*100)}%`;
+    document.getElementById('hp-fill').style.width = `${Math.max(0, (player.hp/player.maxHp)*100)}%`;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Izgara / Harita Arka Planı
+    ctx.strokeStyle = '#1e3a1e'; ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+    for (let y = 0; y < canvas.height; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+
+    metins.forEach(m => m.draw());
+    monsters.forEach(m => m.draw());
+    player.draw();
+
+    // Parçacık Efektleri
+    particles.forEach((pt, i) => {
+      ctx.fillStyle = pt.color; ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI*2); ctx.fill();
+      pt.life--; if (pt.life <= 0) particles.splice(i, 1);
+    });
+  }
+
+  function loop() {
+    if (!isPlaying) return;
+    update(); draw(); requestAnimationFrame(loop);
+  }
+
+  function startGame() {
+    initAudio();
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('controls').style.display = 'flex';
+
+    player = new Player(CLASSES[selectedClass]);
+    metins = []; monsters = []; yang = 0; exp = 0; level = 1;
+    isPlaying = true; loop();
+  }
+
+  function gameOver() {
+    isPlaying = false;
+    document.getElementById('controls').style.display = 'none';
+    document.getElementById('gameover-screen').style.display = 'flex';
+  }
+
+  function respawn() {
+    player.hp = player.maxHp; player.x = 180; player.y = 450;
+    player.targetX = 180; player.targetY = 450;
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('controls').style.display = 'flex';
+    isPlaying = true; loop();
+  }
+</script>
+</body>
+</html>
